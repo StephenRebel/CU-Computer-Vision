@@ -1,2 +1,7 @@
 # Ignore venv
 .venv/
+
+# Ignore models and datasets
+threat_dataset/
+ViT-threat-classification
+food_models
