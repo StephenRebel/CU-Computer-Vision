@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Threat Classification Demo</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .container {
+            margin-top: 20px;
+        }
+
+        #videoElement {
+            width: 100%;
+            height: auto;
+            background-color: #666;
+            margin-bottom: 20px;
+            transform: scaleX(-1);
+        }
+
+        .button {
+            padding: 10px 20px;
+            margin: 10px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        .button-grey {
+            background-color: grey;
+            color: white;
+        }
+
+        .button-green {
+            background-color: green;
+            color: white;
+        }
+
+        .button-red {
+            background-color: red;
+            color: white;
+        }
+
+        .loading {
+            display: none;
+            margin-top: 20px;
+        }
+
+        .error {
+            color: red;
+            margin-top: 10px;
+            display: none;
+        }
+
+        #confidenceSlider {
+            width: 100%;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Threat Classification Demo</h1>
+    <div class="container">
+        <video id="videoElement" autoplay playsinline></video>
+        <div>
+            <button id="captureButton" class="button button-grey">Capture Now</button>
+            <button id="autoCaptureButton" class="button button-green">Start Auto-Capture</button>
+        </div>
+        <div id="loading" class="loading">Processing...</div>
+        <div id="error" class="error"></div>
+        <div id="result"></div>
+        <input type="range" id="confidenceSlider" min="0" max="1" step="0.01" value="0.5" disabled>
+    </div>
+
+    <script>
+        const video = document.getElementById('videoElement');
+        const captureButton = document.getElementById('captureButton');
+        const autoCaptureButton = document.getElementById('autoCaptureButton');
+        const resultDiv = document.getElementById('result');
+        const loadingDiv = document.getElementById('loading');
+        const errorDiv = document.getElementById('error');
+        const confidenceSlider = document.getElementById('confidenceSlider');
+
+        let autoCaptureInterval = null;
+        let cumulativeAverage = 0;
+        let count = 0;
+
+        // Access webcam
+        async function startVideo() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                video.srcObject = stream;
+            } catch (error) {
+                console.error('Error accessing webcam:', error);
+            }
+        }
+
+        // Capture frame and send to server
+        async function captureAndDetect() {
+            const canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const context = canvas.getContext('2d');
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+            const imageData = canvas.toDataURL('image/jpeg');
+
+            try {
+                loadingDiv.style.display = 'block';
+                const response = await fetch('/predict', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ image: imageData }),
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    const confidence = parseFloat(result.confidence) / 100;
+                    cumulativeAverage = ((cumulativeAverage * count) + confidence) / (count + 1);
+                    count++;
+
+                    resultDiv.innerHTML = `
+                        <h3>Detection Result:</h3>
+                        <p>Class: ${result.class}</p>
+                        <p>Confidence: ${result.confidence}</p>
+                    `;
+                    resultDiv.style.display = 'block';
+
+                    updateSlider(cumulativeAverage);
+                } else {
+                    throw new Error(result.error || 'Error processing image');
+                }
+            } catch (error) {
+                errorDiv.textContent = error.message;
+                errorDiv.style.display = 'block';
+            } finally {
+                loadingDiv.style.display = 'none';
+            }
+        }
+
+        // Update slider value and color
+        function updateSlider(value) {
+            confidenceSlider.value = value;
+            const green = Math.round((1 - value) * 255);
+            const red = Math.round(value * 255);
+            confidenceSlider.style.background = `linear-gradient(to right, rgb(${red}, ${green}, 0) ${value * 100}%, #ccc ${value * 100}%)`;
+        }
+
+        // Toggle auto-capture
+        function toggleAutoCapture() {
+            if (autoCaptureInterval) {
+                clearInterval(autoCaptureInterval);
+                autoCaptureInterval = null;
+                autoCaptureButton.textContent = 'Start Auto-Capture';
+                autoCaptureButton.classList.remove('button-red');
+                autoCaptureButton.classList.add('button-green');
+            } else {
+                autoCaptureInterval = setInterval(captureAndDetect, 1000); // Capture every second
+                autoCaptureButton.textContent = 'Stop Auto-Capture';
+                autoCaptureButton.classList.remove('button-green');
+                autoCaptureButton.classList.add('button-red');
+            }
+        }
+
+        captureButton.addEventListener('click', captureAndDetect);
+        autoCaptureButton.addEventListener('click', toggleAutoCapture);
+
+        startVideo();
+    </script>
+</body>
+</html> 
