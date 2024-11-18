@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Object Detection Demo</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .container {
+            margin-top: 20px;
+        }
+
+        #videoElement {
+            width: 640px;
+            height: 480px;
+            background-color: #666;
+            margin-bottom: 20px;
+        }
+
+        .button {
+            background-color: #4CAF50;
+            border: none;
+            color: white;
+            padding: 15px 32px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 4px 2px;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+
+        .button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+
+        #result {
+            margin-top: 20px;
+            padding: 10px;
+            border-radius: 4px;
+            display: none;
+        }
+
+        .loading {
+            display: none;
+            margin-top: 20px;
+        }
+
+        .error {
+            color: red;
+            margin-top: 10px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <h1>Threat Classification Demo</h1>
+    <div class="container">
+        <video id="videoElement" autoplay playsinline></video>
+        <div>
+            <button id="captureButton" class="button">Capture and Detect</button>
+        </div>
+        <div id="loading" class="loading">Processing...</div>
+        <div id="error" class="error"></div>
+        <div id="result"></div>
+    </div>
+
+    <script>
+        const video = document.getElementById('videoElement');
+        const captureButton = document.getElementById('captureButton');
+        const resultDiv = document.getElementById('result');
+        const loadingDiv = document.getElementById('loading');
+        const errorDiv = document.getElementById('error');
+
+        // Access webcam
+        async function startVideo() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                video.srcObject = stream;
+            } catch (err) {
+                console.error("Error accessing webcam:", err);
+                errorDiv.textContent = "Error accessing webcam. Please make sure you have granted camera permissions.";
+                errorDiv.style.display = "block";
+                captureButton.disabled = true;
+            }
+        }
+
+        // Capture image and send to server
+        async function captureAndDetect() {
+            // Create a canvas to capture the video frame
+            const canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(video, 0, 0);
+
+            // Convert to base64
+            const imageData = canvas.toDataURL('image/jpeg');
+
+            // Show loading state
+            loadingDiv.style.display = 'block';
+            resultDiv.style.display = 'none';
+            errorDiv.style.display = 'none';
+            captureButton.disabled = true;
+
+            try {
+                // Send to server
+                const response = await fetch('/predict', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ image: imageData }),
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    resultDiv.innerHTML = `
+                        <h3>Detection Result:</h3>
+                        <p>Class: ${result.class}</p>
+                        <p>Confidence: ${result.confidence}</p>
+                    `;
+                    resultDiv.style.display = 'block';
+                } else {
+                    throw new Error(result.error || 'Error processing image');
+                }
+            } catch (error) {
+                errorDiv.textContent = error.message;
+                errorDiv.style.display = 'block';
+            } finally {
+                loadingDiv.style.display = 'none';
+                captureButton.disabled = false;
+            }
+        }
+
+        // Event listeners
+        startVideo();
+        captureButton.addEventListener('click', captureAndDetect);
+    </script>
+</body>
+</html> 

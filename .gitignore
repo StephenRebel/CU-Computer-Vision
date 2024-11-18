@@ -4,4 +4,5 @@
 # Ignore models and datasets
 threat_dataset/
 ViT-threat-classification
+ViT-threat-classification-v2
 food_models
