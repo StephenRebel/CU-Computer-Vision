@@ -10,40 +10,32 @@ app = Flask(__name__)
 
 # Load your model
 checkpoint = "SABR22/ViT-threat-classification-v2"
-model = AutoModelForImageClassification.from_pretrained(checkpoint)
+model = AutoModelForImageClassification.from_pretrained(checkpoint, device_map='auto')
 
 def process_image(image_data):
     try:
-        # Convert base64 image to PIL Image
         image_bytes = base64.b64decode(image_data.split(',')[1])
         image = Image.open(io.BytesIO(image_bytes))
     except Exception as e:
-        print(f"Error decoding or opening image: {e}")
-        raise
+        raise RuntimeError(f"Error decoding or opening image: {e}")
 
     try:
-        # Define preprocessing steps
-        size = (224, 224)  # Assuming the size used in the training notebook
-        normalize = Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])  # Example values, adjust if needed
+        size = (224, 224)
+        normalize = Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
         preprocess = Compose([
-            RandomResizedCrop(size),  # Use the size from the training notebook
+            RandomResizedCrop(size),
             ToTensor(),
             normalize
         ])
-
-        # Apply preprocessing
-        image = preprocess(image.convert("RGB")).unsqueeze(0)  # Add batch dimension
+        image = preprocess(image.convert("RGB")).unsqueeze(0).to(model.device)  # Move tensor to GPU
     except Exception as e:
-        print(f"Error during preprocessing: {e}")
-        raise
+        raise RuntimeError(f"Error during preprocessing: {e}")
 
     try:
-        # Process image using your model
         inputs = {"pixel_values": image}
         with torch.no_grad():
             outputs = model(**inputs)
 
-        # Get prediction
         predicted_class_idx = outputs.logits.argmax(-1).item()
         predicted_class = model.config.id2label[predicted_class_idx]
         confidence = torch.nn.functional.softmax(outputs.logits, dim=-1)[0][predicted_class_idx].item()
@@ -53,8 +45,7 @@ def process_image(image_data):
             "confidence": f"{confidence:.2%}"
         }
     except Exception as e:
-        print(f"Error during model inference: {e}")
-        raise
+        raise RuntimeError(f"Error during model inference: {e}")
 
 @app.route('/')
 def index():
