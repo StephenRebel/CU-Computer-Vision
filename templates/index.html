@@ -186,7 +186,6 @@
         let cumulativeAverage = 0;
         let count = 0;
 
-        // Access webcam
         async function startVideo() {
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ video: true });
@@ -196,7 +195,6 @@
             }
         }
 
-        // Capture frame and send to server
         async function captureAndDetect() {
             const canvas = document.createElement('canvas');
             canvas.width = video.videoWidth;
@@ -243,7 +241,6 @@
             }
         }
 
-        // Update slider value and color based on threat level
         function updateSlider(value, className) {
             confidenceSlider.value = value;
             const displayValue = value;
@@ -252,7 +249,6 @@
             confidenceSlider.style.background = `linear-gradient(to right, rgb(${red}, ${green}, 0) ${displayValue * 100}%, #ccc ${displayValue * 100}%)`;
         }
 
-        // Toggle auto-capture
         function toggleAutoCapture() {
             if (autoCaptureInterval) {
                 clearInterval(autoCaptureInterval);
@@ -261,7 +257,7 @@
                 autoCaptureButton.classList.remove('button-red');
                 autoCaptureButton.classList.add('button-green');
             } else {
-                autoCaptureInterval = setInterval(captureAndDetect, 1000); // Capture every second
+                autoCaptureInterval = setInterval(captureAndDetect, 1000);
                 autoCaptureButton.textContent = 'Stop Auto-Capture';
                 autoCaptureButton.classList.remove('button-green');
                 autoCaptureButton.classList.add('button-red');
